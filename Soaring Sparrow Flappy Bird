@@ -1,0 +1,170 @@
+import pygame
+import random
+import sys
+
+# Constants
+WIDTH, HEIGHT = 1920, 1080  # Resolution set to 1920x1080
+FPS = 60
+GRAVITY = 0.5
+BACKGROUND_COLOR = (135, 206, 250)  # Sky blue
+
+# Bird parameters
+BIRD_WIDTH = 60
+BIRD_HEIGHT = 40
+BIRD_COLOR = (255, 255, 0)
+
+# Pipe parameters
+PIPE_WIDTH = 80
+GAP_HEIGHT = 200
+PIPE_COLOR = (0, 128, 0)
+PIPE_SPEED = 5
+PIPE_ADD_INTERVAL = 1500  # Milliseconds
+
+# Initialize Pygame
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 36)
+
+class Bird:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.velocity = 0
+        self.jumping = False
+        self.image = pygame.image.load("bird.png")
+        self.image = pygame.transform.scale(self.image, (BIRD_WIDTH, BIRD_HEIGHT))
+
+    def update(self):
+        if self.jumping:
+            self.velocity = -10
+            self.jumping = False
+        self.velocity += GRAVITY
+        self.y += self.velocity
+
+    def jump(self):
+        self.jumping = True
+
+    def draw(self):
+        screen.blit(self.image, (self.x, self.y))
+
+class Pipe:
+    def __init__(self, x):
+        self.x = x
+        self.height = random.randint(50, HEIGHT - GAP_HEIGHT - 50)
+        self.passed = False
+
+    def update(self):
+        self.x -= PIPE_SPEED
+
+    def draw(self):
+        # Upper pipe
+        pygame.draw.rect(screen, PIPE_COLOR, (self.x, 0, PIPE_WIDTH, self.height))
+        # Lower pipe
+        pygame.draw.rect(screen, PIPE_COLOR, (self.x, self.height + GAP_HEIGHT, PIPE_WIDTH, HEIGHT - self.height - GAP_HEIGHT))
+
+def main():
+    bird = Bird(WIDTH // 4, HEIGHT // 2)
+    pipes = []
+    score = 0
+    last_pipe_added_time = pygame.time.get_ticks()
+    game_started = False
+
+    running = True
+    while running:
+        screen.fill(BACKGROUND_COLOR)
+
+        # Draw sky elements
+        draw_sun(100, 100)
+        draw_cloud(200, 150)
+        draw_cloud(500, 100)
+        draw_mountains()
+
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    if not game_started:
+                        game_started = True
+                    bird.jump()
+                elif event.key == pygame.K_r:
+                    restart_game(bird, pipes)
+                    score = 0
+                elif event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+
+        # Update bird if the game has started
+        if game_started:
+            bird.update()
+
+        # Check collision with screen edges
+        if bird.y <= 0 or bird.y + BIRD_HEIGHT >= HEIGHT:
+            restart_game(bird, pipes)
+            score = 0
+            game_started = False
+
+        # Generate pipes if the game has started
+        if game_started and pygame.time.get_ticks() - last_pipe_added_time > PIPE_ADD_INTERVAL:
+            pipes.append(Pipe(WIDTH))
+            last_pipe_added_time = pygame.time.get_ticks()
+
+        # Update pipes and check collisions if the game has started
+        if game_started:
+            for pipe in pipes:
+                pipe.update()
+                if not pipe.passed and bird.x > pipe.x + PIPE_WIDTH:
+                    pipe.passed = True
+                    score += 1
+                if bird.x < pipe.x + PIPE_WIDTH and bird.x + BIRD_WIDTH > pipe.x:
+                    if bird.y < pipe.height or bird.y + BIRD_HEIGHT > pipe.height + GAP_HEIGHT:
+                        restart_game(bird, pipes)
+                        score = 0
+                        game_started = False
+                    elif bird.x == pipe.x + PIPE_WIDTH:
+                        score += 1
+
+            # Remove off-screen pipes
+            pipes = [pipe for pipe in pipes if pipe.x > -PIPE_WIDTH]
+
+        # Draw pipes if the game has started
+        if game_started:
+            for pipe in pipes:
+                pipe.draw()
+
+            # Draw bird if the game has started
+            bird.draw()
+
+        # Draw score
+        score_text = font.render("Score: " + str(score), True, (0, 0, 0))
+        screen.blit(score_text, (10, 10))
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    pygame.quit()
+
+def restart_game(bird, pipes):
+    bird.x = WIDTH // 4
+    bird.y = HEIGHT // 2
+    bird.velocity = 0
+    bird.jumping = False
+    pipes.clear()
+
+def draw_cloud(x, y):
+    pygame.draw.circle(screen, (255, 255, 255), (x, y), 20)
+    pygame.draw.circle(screen, (255, 255, 255), (x + 30, y - 10), 25)
+    pygame.draw.circle(screen, (255, 255, 255), (x + 60, y), 20)
+
+def draw_sun(x, y):
+    pygame.draw.circle(screen, (255, 255, 0), (x, y), 50)
+
+def draw_mountains():
+    pygame.draw.polygon(screen, (139, 69, 19), [(0, HEIGHT // 2), (200, 200), (400, HEIGHT // 2)])
+    pygame.draw.polygon(screen, (139, 69, 19), [(200, HEIGHT // 2), (400, 250), (600, HEIGHT // 2)])
+    pygame.draw.polygon(screen, (139, 69, 19), [(400, HEIGHT // 2), (600, 300), (800, HEIGHT // 2)])
+
+if __name__ == "__main__":
+    main()
